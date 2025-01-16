@@ -6,10 +6,9 @@ project('cbench', 'c',
   default_options: [ 'warning_level=3' ]
 )
 
-header = ['tsc.h']
 project_dep = declare_dependency(include_directories: 'include')
 
-install_headers(['include/tsc.h'], subdir: meson.project_name())
+install_headers(['include/measurement.h'], subdir: meson.project_name())
 pkgconfig = import('pkgconfig')
 pkgconfig.generate(
   name : meson.project_name(),
