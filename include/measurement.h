@@ -81,7 +81,6 @@ static inline double dtime(long long debut, long long fin, double tsccycles) {
   return (double)(fin - debut - tsccycles);
 }
 
-#define N 100000
 #include <math.h>
 
 int cbench_compare_double(const void *x, const void *y) {
@@ -103,9 +102,9 @@ double tmean(double ar[], int n) {
   int ii, jj;
   // On trie les données pour avoir mediane et quartiles
   qsort(ar, n, sizeof(double), cbench_compare_double);
-  q1 = ar[N / 4];
-  q2 = ar[N / 2];
-  q3 = ar[3 * N / 4];
+  q1 = ar[n / 4];
+  q2 = ar[n / 2];
+  q3 = ar[3 * n / 4];
 
   // calcul de la moyenne des valeurs dans l'intervalle
   // [q2-k*(q3-q1),q2+k*(q3-q1)]
@@ -144,8 +143,8 @@ static inline measurement cbench_compute_stats(double tmin, double tmax,
   double tvar, tavg, ttavg;
   tavg = tsum / n; // moyenne brute
   tvar =
-      sqrt((t2sum + (tavg * tavg * N) - 2 * tavg * tsum) / N); // variance brute
-  ttavg = tmean(array, N); // moyenne arrangée
+      sqrt((t2sum + (tavg * tavg * n) - 2 * tavg * tsum) / n); // variance brute
+  ttavg = tmean(array, n); // moyenne arrangée
   return (measurement){tavg, tmin, tmax, tvar, ttavg};
 }
 
@@ -158,6 +157,8 @@ static measurement compute_measurement(double array[], unsigned n) {
   }
   return cbench_compute_stats(tmin, tmax, tsum, t2sum, array, n);
 }
+
+#define N 100000
 
 static measurement eval_tsc_cycles(void) {
   double tsum = 0.0, t2sum = 0.0, tmin = 1e30, tmax = 0.0;
