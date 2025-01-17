@@ -84,7 +84,7 @@ static inline double dtime(long long debut, long long fin, double tsccycles) {
 #define N 100000
 #include <math.h>
 
-int cmp(const void *x, const void *y) {
+int cbench_compare_double(const void *x, const void *y) {
   double xx = *(double *)x, yy = *(double *)y;
   if (xx < yy)
     return -1;
@@ -102,7 +102,7 @@ double tmean(double ar[], int n) {
   double q1, q2, q3, sum = 0.0, k = 1.0;
   int ii, jj;
   // On trie les données pour avoir mediane et quartiles
-  qsort(ar, n, sizeof(double), cmp);
+  qsort(ar, n, sizeof(double), cbench_compare_double);
   q1 = ar[N / 4];
   q2 = ar[N / 2];
   q3 = ar[3 * N / 4];
@@ -130,9 +130,37 @@ typedef struct {
   double ttavg;
 } measurement;
 
-measurement eval_tsc_cycles(void) {
+static inline void cbench_update_stats(double t, double *tmin, double *tmax,
+                                       double *tsum, double *t2sum) {
+  *tsum += t;
+  *t2sum += t * t;
+  *tmin = (*tmin < t ? *tmin : t);
+  *tmax = (*tmax > t ? *tmax : t);
+}
 
-  double tsum = 0.0, t2sum = 0.0, tavg, tvar, tmin = 1e30, tmax = 0.0, ttavg;
+static inline measurement cbench_compute_stats(double tmin, double tmax,
+                                               double tsum, double t2sum,
+                                               double *array, unsigned n) {
+  double tvar, tavg, ttavg;
+  tavg = tsum / n; // moyenne brute
+  tvar =
+      sqrt((t2sum + (tavg * tavg * N) - 2 * tavg * tsum) / N); // variance brute
+  ttavg = tmean(array, N); // moyenne arrangée
+  return (measurement){tavg, tmin, tmax, tvar, ttavg};
+}
+
+static measurement compute_measurement(double array[], unsigned n) {
+  double tsum = 0.0, t2sum = 0.0, tmin = 1e30, tmax = 0.0;
+  for (unsigned i = 0; i < n; i++) {
+    double t = array[i];
+    // pour calcul moyenne et variance brutes
+    cbench_update_stats(t, &tmin, &tmax, &tsum, &t2sum);
+  }
+  return cbench_compute_stats(tmin, tmax, tsum, t2sum, array, n);
+}
+
+static measurement eval_tsc_cycles(void) {
+  double tsum = 0.0, t2sum = 0.0, tmin = 1e30, tmax = 0.0;
   double tresults[N];
   long long debut, fin;
   double t;
@@ -145,17 +173,9 @@ measurement eval_tsc_cycles(void) {
     t = (double)(fin - debut);
     // mise dans un tableau pour moyenne arrangée
     tresults[i] = t;
-    // pour calcul moyenne et variance brutes
-    tsum += t;
-    t2sum += t * t;
-    tmin = (tmin < t ? tmin : t);
-    tmax = (tmax > t ? tmax : t);
+    cbench_update_stats(t, &tmin, &tmax, &tsum, &t2sum);
   }
-  tavg = tsum / N; // moyenne brute
-  tvar =
-      sqrt((t2sum + (tavg * tavg * N) - 2 * tavg * tsum) / N); // variance brute
-  ttavg = tmean(tresults, N); // moyenne arrangée
-  return (measurement){tavg, tmin, tmax, tvar, ttavg};
+  return cbench_compute_stats(tmin, tmax, tsum, t2sum, tresults, N);
 }
 
 #undef N
