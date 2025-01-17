@@ -7,6 +7,7 @@ project('cbench', 'c',
 )
 
 project_dep = declare_dependency(include_directories: 'include')
+set_variable(meson.project_name() + '_dep', project_dep)
 
 install_headers(['include/measurement.h'], subdir: meson.project_name())
 pkgconfig = import('pkgconfig')
