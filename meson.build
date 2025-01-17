@@ -6,7 +6,10 @@ project('cbench', 'c',
   default_options: [ 'warning_level=3' ]
 )
 
-project_dep = declare_dependency(include_directories: 'include')
+cc = meson.get_compiler('c')
+m_dep = cc.find_library('m', required : false)
+
+project_dep = declare_dependency(include_directories: 'include', dependencies: [m_dep])
 set_variable(meson.project_name() + '_dep', project_dep)
 
 install_headers(['include/measurement.h'], subdir: meson.project_name())
@@ -18,9 +21,6 @@ pkgconfig.generate(
   subdirs : meson.project_name(),
 )
 
-cc = meson.get_compiler('c')
-m_dep = cc.find_library('m', required : false)
-
 if not meson.is_subproject()
-  executable('eval', 'src/eval.c', dependencies: [project_dep, m_dep])
+  executable('eval', 'src/eval.c', dependencies: [project_dep])
 endif
