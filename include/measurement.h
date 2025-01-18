@@ -92,42 +92,12 @@ int cbench_compare_double(const void *x, const void *y) {
   return 0;
 }
 
-double tmean(double ar[], int n) {
-  // moyenne arrangée pour enlever les points abherrants.
-  // On cherche la médiane m et les quartiles q1 et q3.
-  // On calcule la moyenne sur tout ce qui est dans [m-k*(q3-q1),m+k*(q3-q1)]
-  // k=1.0 marche bien
-
-  double q1, q2, q3, sum = 0.0, k = 1.0;
-  int ii, jj;
-  // On trie les données pour avoir mediane et quartiles
-  qsort(ar, n, sizeof(double), cbench_compare_double);
-  q1 = ar[n / 4];
-  q2 = ar[n / 2];
-  q3 = ar[3 * n / 4];
-
-  // calcul de la moyenne des valeurs dans l'intervalle
-  // [q2-k*(q3-q1),q2+k*(q3-q1)]
-  ii = 0;
-  while (ar[ii++] < q2 - k * (q3 - q1))
-    ;
-  jj = ii;
-  while (ar[jj] < q2 + k * (q3 - q1)) {
-    sum += ar[jj];
-    jj++;
-    if (jj >= n - 1)
-      break;
-  }
-  return sum / (double)(jj - ii);
-}
-
 typedef struct {
   double tavg;
   double tmin;
   double tmax;
   double tvar;
-  double ttavg;
-} measurement;
+} measurement_t;
 
 static inline void cbench_update_stats(double t, double *tmin, double *tmax,
                                        double *tsum, double *t2sum) {
@@ -137,31 +107,54 @@ static inline void cbench_update_stats(double t, double *tmin, double *tmax,
   *tmax = (*tmax > t ? *tmax : t);
 }
 
-static inline measurement cbench_compute_stats(double tmin, double tmax,
-                                               double tsum, double t2sum,
-                                               double *array, unsigned n) {
-  double tvar, tavg, ttavg;
+static inline measurement_t cbench_compute_stats(double tmin, double tmax,
+                                                 double tsum, double t2sum,
+                                                 unsigned n) {
+  double tvar, tavg;
   tavg = tsum / n; // moyenne brute
   tvar =
       sqrt((t2sum + (tavg * tavg * n) - 2 * tavg * tsum) / n); // variance brute
-  ttavg = tmean(array, n); // moyenne arrangée
-  return (measurement){tavg, tmin, tmax, tvar, ttavg};
+  return (measurement_t){tavg, tmin, tmax, tvar};
 }
 
-static measurement compute_measurement(double array[], unsigned n) {
+static measurement_t compute_measurement(double array[], unsigned n) {
   double tsum = 0.0, t2sum = 0.0, tmin = 1e30, tmax = 0.0;
   for (unsigned i = 0; i < n; i++) {
-    double t = array[i];
-    // pour calcul moyenne et variance brutes
-    cbench_update_stats(t, &tmin, &tmax, &tsum, &t2sum);
+    // Update min, max and sum for mean and variance computeation
+    cbench_update_stats(array[i], &tmin, &tmax, &tsum, &t2sum);
   }
-  return cbench_compute_stats(tmin, tmax, tsum, t2sum, array, n);
+  // compute mean and variance
+  return cbench_compute_stats(tmin, tmax, tsum, t2sum, n);
+}
+
+static measurement_t compute_measurement_iqr(double *array, unsigned int n) {
+  // Compute a reasonable interval for statistics computation using the
+  // inter-quartile range method
+  double q1, q3, lowest, greatest, k = 1.5;
+  double tsum = 0.0, t2sum = 0.0, tmin = 1e30, tmax = 0.0;
+  unsigned i, j;
+  // On trie les données pour avoir mediane et quartiles
+  qsort(array, n, sizeof(double), cbench_compare_double);
+  q1 = array[n / 4];
+  q3 = array[3 * n / 4];
+  lowest = q1 - k * (q3 - q1);
+  greatest = q3 + k * (q3 - q1);
+
+  i = 0;
+  while (array[i++] < lowest)
+    ;
+  j = i;
+  while (j < n && array[j] < greatest) {
+    double t = array[j];
+    cbench_update_stats(t, &tmin, &tmax, &tsum, &t2sum);
+    j++;
+  }
+  return cbench_compute_stats(tmin, tmax, tsum, t2sum, j - i);
 }
 
 #define N 100000
 
-static measurement eval_tsc_cycles(void) {
-  double tsum = 0.0, t2sum = 0.0, tmin = 1e30, tmax = 0.0;
+static measurement_t eval_tsc_cycles(void) {
   double tresults[N];
   long long debut, fin;
   double t;
@@ -174,9 +167,8 @@ static measurement eval_tsc_cycles(void) {
     t = (double)(fin - debut);
     // mise dans un tableau pour moyenne arrangée
     tresults[i] = t;
-    cbench_update_stats(t, &tmin, &tmax, &tsum, &t2sum);
   }
-  return cbench_compute_stats(tmin, tmax, tsum, t2sum, tresults, N);
+  return compute_measurement_iqr(tresults, N);
 }
 
 #undef N
